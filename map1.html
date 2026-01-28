@@ -2,40 +2,172 @@
 <html>
 
 <head>
-    <meta charset="utf-8">
-    <title>Earthquakes in Japan</title>
-    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-    <link href="https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.css" rel="stylesheet">
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.js"></script>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-        }
+  <meta charset="utf-8" />
+  <title>COVID-19 Case Rates (2020)</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
 
-        #map {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 100%;
-        }
-    </style>
+  <!-- Mapbox -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+    }
+
+    #title {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px 12px;
+      border-radius: 6px;
+      max-width: 360px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    #legend {
+      position: absolute;
+      bottom: 15px;
+      right: 15px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px 12px;
+      border-radius: 6px;
+      width: 190px;
+      font-size: 12px;
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      margin: 6px 0;
+    }
+
+    .swatch {
+      width: 18px;
+      height: 12px;
+      margin-right: 8px;
+      border: 1px solid #999;
+    }
+
+    .small {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #333;
+      line-height: 1.3;
+    }
+  </style>
 </head>
 
 <body>
-    <div id="map"></div>
-    <script>
-        mapboxgl.accessToken =
-            'pk.eyJ1IjoiamFrb2J6aGFvIiwiYSI6ImNpcms2YWsyMzAwMmtmbG5icTFxZ3ZkdncifQ.P9MBej1xacybKcDN_jehvw';
-        let map = new mapboxgl.Map({
-            container: 'map', // container ID
-            style: 'mapbox://styles/mapbox/dark-v10',
-            zoom: 5, // starting zoom
-            minZoom: 4, // minimum zoom level of the map
-            center: [138, 38] // starting center
-        });
-    </script>
+
+  <div id="map"></div>
+
+  <div id="title">
+    <strong>COVID-19 Case Rates (2020)</strong><br />
+    County-level choropleth showing cases per 1,000 residents.<br />
+    <span class="small">Click a county for details.</span>
+  </div>
+
+  <div id="legend"></div>
+
+  <script>
+    
+    mapboxgl.accessToken =
+      'pk.eyJ1IjoieWVhYjEiLCJhIjoiY21reW1zazkzMDhqcTNrcHM4cGN6NmxseiJ9.mpKKPYbA_AZ07E9Xhld9qA';
+
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/light-v11',
+      center: [-96, 37.8],
+      zoom: 3,
+      minZoom: 2,
+      projection: 'albers'
+    });
+
+    map.addControl(new mapboxgl.NavigationControl());
+
+    // Legend
+    const legend = document.getElementById('legend');
+    legend.innerHTML = `
+      <strong>Case rate (per 1,000)</strong>
+      <div class="legend-row"><span class="swatch" style="background:#f7fbff"></span>0+</div>
+      <div class="legend-row"><span class="swatch" style="background:#c6dbef"></span>2+</div>
+      <div class="legend-row"><span class="swatch" style="background:#6baed6"></span>5+</div>
+      <div class="legend-row"><span class="swatch" style="background:#2171b5"></span>10+</div>
+      <div class="legend-row"><span class="swatch" style="background:#08306b"></span>20+</div>
+      <div class="small">
+        Data: NYT COVID-19 (2020), ACS 2018 population, US Census counties
+      </div>
+    `;
+
+    map.on('load', () => {
+
+      map.addSource('rates', {
+        type: 'geojson',
+        data: 'assets/us-covid-2020-rates.json'
+      });
+
+      // Choropleth layer
+      map.addLayer({
+        id: 'rates-fill',
+        type: 'fill',
+        source: 'rates',
+        paint: {
+          'fill-color': [
+            'interpolate',
+            ['linear'],
+            ['get', 'rates'],   
+            0, '#f7fbff',
+            2, '#c6dbef',
+            5, '#6baed6',
+            10, '#2171b5',
+            20, '#08306b'
+          ],
+          'fill-opacity': 0.75
+        }
+      });
+
+      // County outlines
+      map.addLayer({
+        id: 'rates-outline',
+        type: 'line',
+        source: 'rates',
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 0.2
+        }
+      });
+
+      // Popup
+      map.on('click', 'rates-fill', (e) => {
+        const p = e.features[0].properties;
+
+        new mapboxgl.Popup()
+          .setLngLat(e.lngLat)
+          .setHTML(`
+            <strong>${p.county}, ${p.state}</strong><br/>
+            Case rate: <strong>${p.rates}</strong> per 1,000<br/>
+            Total cases: ${p.cases}<br/>
+            Population (2018): ${p.pop18}
+          `)
+          .addTo(map);
+      });
+
+      map.on('mouseenter', 'rates-fill', () => map.getCanvas().style.cursor = 'pointer');
+      map.on('mouseleave', 'rates-fill', () => map.getCanvas().style.cursor = '');
+    });
+  </script>
 
 </body>
-
 </html>
